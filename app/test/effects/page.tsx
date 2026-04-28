@@ -4,34 +4,19 @@ import { useState } from "react";
 import { rijksmuseumImageUrl } from "@/lib/utils";
 
 /**
- * Effects test page — not in main navigation, not for Archive & Bloom.
- * Visit at /test/effects to preview six visual treatments that could be
- * the basis for a separate, more playful sister-brand later.
- *
- * The image used is the Sprig of White Currants with Insects — a pale
- * drawing where colour shifts read clearly.
- *
- * To swap in a different work, change WORK_IIIF_ID below.
+ * Effects test page — sister-brand prototype.
+ * Three treatments only — soft vintage, spotlight, indigo wash.
+ * (Magenta, saffron and outline have been retired based on first review.)
  */
 
-// White currants with insects — paste the IIIF id here once you have it.
-// Until then, the page falls back to a placeholder demo image.
-const WORK_IIIF_ID = ""; // e.g. "abcdef"
+const WORK_IIIF_ID = ""; // paste the white-currants IIIF id once known
 const WORK_TITLE = "Sprig of White Currants with Insects";
 const WORK_SOURCE_URL =
   "https://www.rijksmuseum.nl/en/collection/object/Sprig-of-White-Currants-with-Insects--75123495e9fea66aaa874f654878bb04";
 
-// Fallback demo: Ruysch (we know this one works). Used if you haven't
-// pasted the white-currants ID yet.
-const FALLBACK_IIIF_ID = "sbaXO";
+const FALLBACK_IIIF_ID = "sbaXO"; // Ruysch — known to work
 
-type EffectKey =
-  | "duotone-magenta"
-  | "duotone-yellow"
-  | "duotone-blue"
-  | "outline"
-  | "single-bloom"
-  | "soft-vintage";
+type EffectKey = "soft-vintage" | "spotlight" | "indigo-wash";
 
 interface EffectDef {
   key: EffectKey;
@@ -41,55 +26,32 @@ interface EffectDef {
 
 const EFFECTS: EffectDef[] = [
   {
-    key: "duotone-magenta",
-    label: "Magenta wash",
-    description: "Two-tone treatment in cream + magenta. Print-mijn-stad style.",
-  },
-  {
-    key: "duotone-yellow",
-    label: "Saffron wash",
-    description: "Two-tone in cream + ochre. Warm, retro-poster feel.",
-  },
-  {
-    key: "duotone-blue",
-    label: "Indigo wash",
-    description: "Two-tone in cream + deep blue. Cyanotype-like.",
-  },
-  {
-    key: "outline",
-    label: "Edge outline",
-    description: "Inverted high-contrast — turns the work into a line drawing.",
-  },
-  {
-    key: "single-bloom",
-    label: "Spotlight",
-    description: "Desaturated background with one circular area kept in colour.",
-  },
-  {
     key: "soft-vintage",
     label: "Soft vintage",
     description: "Lifted blacks, warm tone, slight fade — old-paper feel.",
   },
+  {
+    key: "spotlight",
+    label: "Spotlight",
+    description: "Desaturated background with one circular area kept in colour.",
+  },
+  {
+    key: "indigo-wash",
+    label: "Indigo wash",
+    description: "Two-tone in cream + deep blue. Cyanotype-like.",
+  },
 ];
 
-// Per-effect default slider values
 const DEFAULTS: Record<EffectKey, { intensity: number; hue: number }> = {
-  "duotone-magenta": { intensity: 75, hue: 320 },
-  "duotone-yellow": { intensity: 75, hue: 45 },
-  "duotone-blue": { intensity: 75, hue: 220 },
-  outline: { intensity: 60, hue: 0 },
-  "single-bloom": { intensity: 80, hue: 0 },
   "soft-vintage": { intensity: 50, hue: 30 },
+  spotlight: { intensity: 80, hue: 0 },
+  "indigo-wash": { intensity: 75, hue: 220 },
 };
 
 export default function EffectsTestPage() {
-  const [selectedEffect, setSelectedEffect] = useState<EffectKey>(
-    "duotone-magenta"
-  );
-  const [intensity, setIntensity] = useState(
-    DEFAULTS["duotone-magenta"].intensity
-  );
-  const [hue, setHue] = useState(DEFAULTS["duotone-magenta"].hue);
+  const [selectedEffect, setSelectedEffect] = useState<EffectKey>("soft-vintage");
+  const [intensity, setIntensity] = useState(DEFAULTS["soft-vintage"].intensity);
+  const [hue, setHue] = useState(DEFAULTS["soft-vintage"].hue);
   const [paperPreview, setPaperPreview] = useState(true);
 
   const activeId = WORK_IIIF_ID || FALLBACK_IIIF_ID;
@@ -106,14 +68,12 @@ export default function EffectsTestPage() {
       <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10">
         <p className="eyebrow mb-3">Internal sandbox — sister-brand prototype</p>
         <h1 className="font-serif text-5xl text-umber leading-[1.05] mb-4">
-          Six ways to treat one work.
+          Three treatments worth keeping.
         </h1>
         <p className="text-stone max-w-2xl leading-relaxed">
-          Six purely-CSS treatments applied to{" "}
-          <em>{WORK_TITLE}</em>. Two control styles: preset chips (one click,
-          curated values) and sliders (free play). Nothing here is for Archive
-          &amp; Bloom — this is a rough sketch for a possible second, more
-          playful brand.{" "}
+          Trimmed down to the three effects that felt right for{" "}
+          <em>{WORK_TITLE}</em>. Two control styles to compare: preset chips
+          (one click) and sliders (free play).{" "}
           <a
             href={WORK_SOURCE_URL}
             target="_blank"
@@ -126,8 +86,8 @@ export default function EffectsTestPage() {
 
         {!WORK_IIIF_ID && (
           <p className="mt-4 text-xs text-rust font-sans italic">
-            Showing fallback work (Ruysch) until you paste the white-currants
-            IIIF ID into <code>WORK_IIIF_ID</code> in this file.
+            Showing fallback work (Ruysch) until the white-currants IIIF ID is
+            pasted into <code>WORK_IIIF_ID</code> in this file.
           </p>
         )}
 
@@ -159,14 +119,13 @@ export default function EffectsTestPage() {
 
           {/* CONTROLS */}
           <div className="lg:col-span-5 space-y-10">
-            {/* Style 1: preset chips */}
             <section>
               <p className="eyebrow mb-3">Control style A — preset chips</p>
               <p className="text-xs text-stone mb-4 font-sans">
                 One click, curated values. Easiest for a customer who just
                 wants something nice.
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 {EFFECTS.map((e) => (
                   <button
                     key={e.key}
@@ -194,11 +153,10 @@ export default function EffectsTestPage() {
               </div>
             </section>
 
-            {/* Style 2: sliders */}
             <section>
               <p className="eyebrow mb-3">Control style B — sliders</p>
               <p className="text-xs text-stone mb-4 font-sans">
-                Free play with intensity and (for duotones) hue. For customers
+                Free play with intensity and (for indigo) hue. For customers
                 who want to tinker.
               </p>
 
@@ -211,13 +169,13 @@ export default function EffectsTestPage() {
                   max={100}
                   unit="%"
                 />
-                {selectedEffect.startsWith("duotone") && (
+                {selectedEffect === "indigo-wash" && (
                   <SliderRow
                     label="Hue"
                     value={hue}
                     onChange={setHue}
-                    min={0}
-                    max={360}
+                    min={180}
+                    max={260}
                     unit="°"
                   />
                 )}
@@ -274,10 +232,6 @@ function SliderRow({
   );
 }
 
-/**
- * The actual visual effects. All implemented with CSS `filter` and
- * `mix-blend-mode` — no canvas, no image processing.
- */
 function EffectCanvas({
   imageUrl,
   effect,
@@ -289,17 +243,13 @@ function EffectCanvas({
   intensity: number;
   hue: number;
 }) {
-  const i = intensity / 100; // 0..1
+  const i = intensity / 100;
 
-  // Base image styling per effect
   let imgStyle: React.CSSProperties = {};
   let overlayElement: React.ReactNode = null;
 
   switch (effect) {
-    case "duotone-magenta":
-    case "duotone-yellow":
-    case "duotone-blue": {
-      // Convert image to grayscale, then overlay coloured layer with multiply
+    case "indigo-wash": {
       imgStyle = {
         filter: `grayscale(1) contrast(${1 + i * 0.4}) brightness(${1 + i * 0.1})`,
       };
@@ -316,21 +266,8 @@ function EffectCanvas({
       break;
     }
 
-    case "outline": {
-      imgStyle = {
-        filter: `grayscale(1) invert(1) brightness(${0.8 + i * 0.4}) contrast(${
-          2 + i * 4
-        })`,
-      };
-      break;
-    }
-
-    case "single-bloom": {
-      imgStyle = {
-        filter: `saturate(${0.2 - i * 0.15})`,
-      };
-      // Spotlight overlay: a circular mask in the centre that "punches through"
-      // by showing a second copy of the image in full colour.
+    case "spotlight": {
+      imgStyle = { filter: `saturate(${0.2 - i * 0.15})` };
       overlayElement = (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img

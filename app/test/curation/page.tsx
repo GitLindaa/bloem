@@ -7,15 +7,11 @@ import { rijksmuseumImageUrl } from "@/lib/utils";
  * Curation test page — not in main navigation.
  * Visit at /test/curation to evaluate candidate works for Archive & Bloom.
  *
- * For each work below: open the source URL in a new tab, view page source
- * (⌘U), search for "iiif.micr.io", copy the 5-6 character ID and paste it
- * into the input field. The image will load immediately.
+ * Click "Auto-load all" to fetch every IIIF ID via a public CORS proxy.
+ * Falls back to manual paste if the proxy is unavailable for a particular
+ * work.
  *
- * Mark each work as: keep / skip / maybe — and screenshot/note your verdict.
- * Then send the final list to be turned into real products.
- *
- * IDs you enter are saved in your browser (localStorage) so you don't lose
- * them if you refresh.
+ * IDs and verdicts are saved in localStorage — survives a page refresh.
  */
 
 interface Candidate {
@@ -149,8 +145,9 @@ const CANDIDATES: Candidate[] = [
 ];
 
 type Verdict = "unset" | "keep" | "maybe" | "skip";
+type FetchStatus = "idle" | "loading" | "found" | "notfound" | "error";
 
-const STORAGE_KEY = "ab-curation-test-v1";
+const STORAGE_KEY = "ab-curation-test-v2";
 
 interface SavedState {
   ids: Record<string, string>;
@@ -173,10 +170,29 @@ function saveState(state: SavedState) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+/**
+ * Fetch a Rijksmuseum object page through a public CORS proxy and extract
+ * the IIIF image ID. Returns null if the page doesn't reference iiif.micr.io.
+ *
+ * The proxy is corsproxy.io — free, no key, generous limits. If it ever
+ * stops working, alternatives: api.allorigins.win, cors-anywhere.herokuapp.com.
+ */
+async function fetchIIIFId(sourceUrl: string): Promise<string | null> {
+  const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(sourceUrl)}`;
+  const response = await fetch(proxyUrl);
+  if (!response.ok) throw new Error(`Proxy returned ${response.status}`);
+  const html = await response.text();
+  // Match iiif.micr.io/XXXXXX where the ID is alphanumeric, typically 5-6 chars
+  const match = html.match(/iiif\.micr\.io\/([A-Za-z0-9]+)/);
+  return match ? match[1] : null;
+}
+
 export default function CurationTestPage() {
   const [ids, setIds] = useState<Record<string, string>>({});
   const [verdicts, setVerdicts] = useState<Record<string, Verdict>>({});
+  const [status, setStatus] = useState<Record<string, FetchStatus>>({});
   const [hydrated, setHydrated] = useState(false);
+  const [autoLoading, setAutoLoading] = useState(false);
 
   useEffect(() => {
     const s = loadState();
@@ -194,6 +210,32 @@ export default function CurationTestPage() {
 
   const setVerdict = (slug: string, v: Verdict) =>
     setVerdicts((prev) => ({ ...prev, [slug]: v }));
+
+  const fetchOne = async (c: Candidate) => {
+    setStatus((s) => ({ ...s, [c.slug]: "loading" }));
+    try {
+      const id = await fetchIIIFId(c.sourceUrl);
+      if (id) {
+        setIds((prev) => ({ ...prev, [c.slug]: id }));
+        setStatus((s) => ({ ...s, [c.slug]: "found" }));
+      } else {
+        setStatus((s) => ({ ...s, [c.slug]: "notfound" }));
+      }
+    } catch (e) {
+      setStatus((s) => ({ ...s, [c.slug]: "error" }));
+    }
+  };
+
+  const autoLoadAll = async () => {
+    setAutoLoading(true);
+    // Batch into small groups so we don't hammer the proxy
+    const BATCH = 3;
+    for (let i = 0; i < CANDIDATES.length; i += BATCH) {
+      const slice = CANDIDATES.slice(i, i + BATCH);
+      await Promise.all(slice.map(fetchOne));
+    }
+    setAutoLoading(false);
+  };
 
   const counts = {
     total: CANDIDATES.length,
@@ -217,6 +259,7 @@ export default function CurationTestPage() {
     if (!confirm("Clear all IDs and verdicts?")) return;
     setIds({});
     setVerdicts({});
+    setStatus({});
   };
 
   return (
@@ -232,6 +275,13 @@ export default function CurationTestPage() {
           <span className="text-rust">~ maybe: {counts.maybe}</span>
           <span className="text-stone">✗ skip: {counts.skip}</span>
           <div className="ml-auto flex gap-2">
+            <button
+              onClick={autoLoadAll}
+              disabled={autoLoading}
+              className="btn-primary text-xs disabled:opacity-50"
+            >
+              {autoLoading ? "Loading…" : "Auto-load all"}
+            </button>
             <button onClick={exportText} className="btn-ghost text-xs">
               Copy verdicts
             </button>
@@ -248,17 +298,19 @@ export default function CurationTestPage() {
           Candidates from the Rijksmuseum.
         </h1>
         <p className="text-stone max-w-2xl leading-relaxed">
-          For each work, open the source URL, press <kbd>⌘U</kbd> to view source,
-          search for <code className="text-umber">iiif.micr.io</code>, copy the
-          5–6 character ID and paste it below. The image loads instantly. Mark
-          each as keep / maybe / skip. Your inputs save automatically in this
-          browser.
+          Click <strong className="text-umber">Auto-load all</strong> in the
+          header to fetch every image automatically. If a few don&apos;t work,
+          you can still paste IDs manually (open the source link, view source
+          with <kbd>⌘U</kbd>, search for{" "}
+          <code className="text-umber">iiif.micr.io</code>). Mark each work as
+          keep / maybe / skip — your inputs save automatically.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-12 mt-12">
           {CANDIDATES.map((c) => {
             const id = ids[c.slug];
             const verdict = verdicts[c.slug] ?? "unset";
+            const stat = status[c.slug] ?? "idle";
             const imageUrl = id ? rijksmuseumImageUrl(id, 800) : null;
 
             return (
@@ -268,7 +320,7 @@ export default function CurationTestPage() {
                   verdict === "skip" ? "opacity-40" : ""
                 }`}
               >
-                <div className="aspect-[4/5] bg-cream border border-umber/10 flex items-center justify-center overflow-hidden">
+                <div className="aspect-[4/5] bg-cream border border-umber/10 flex items-center justify-center overflow-hidden relative">
                   {imageUrl ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img
@@ -278,7 +330,13 @@ export default function CurationTestPage() {
                     />
                   ) : (
                     <span className="text-xs uppercase tracking-widest text-stone font-sans">
-                      Paste IIIF ID below
+                      {stat === "loading"
+                        ? "Loading…"
+                        : stat === "error"
+                          ? "Proxy error"
+                          : stat === "notfound"
+                            ? "No IIIF found"
+                            : "Auto-load or paste id"}
                     </span>
                   )}
                 </div>
@@ -309,6 +367,14 @@ export default function CurationTestPage() {
                       placeholder="IIIF id"
                       className="flex-1 px-3 py-1.5 text-sm border border-umber/20 bg-white font-mono"
                     />
+                    <button
+                      onClick={() => fetchOne(c)}
+                      disabled={stat === "loading"}
+                      className="text-xs px-2 py-1.5 border border-umber/20 hover:bg-cream font-sans whitespace-nowrap disabled:opacity-50"
+                      title="Try fetching this one again"
+                    >
+                      {stat === "loading" ? "…" : "↻"}
+                    </button>
                     <a
                       href={c.sourceUrl}
                       target="_blank"
