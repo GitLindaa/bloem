@@ -174,17 +174,41 @@ function saveState(state: SavedState) {
  * Fetch a Rijksmuseum object page through a public CORS proxy and extract
  * the IIIF image ID. Returns null if the page doesn't reference iiif.micr.io.
  *
- * The proxy is corsproxy.io — free, no key, generous limits. If it ever
- * stops working, alternatives: api.allorigins.win, cors-anywhere.herokuapp.com.
+ * Tries multiple proxies in sequence — public CORS proxies come and go,
+ * so a fallback chain dramatically improves reliability. If all proxies
+ * fail, the user falls back to the manual paste route.
  */
+const PROXIES = [
+  (url: string) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  (url: string) =>
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+];
+
 async function fetchIIIFId(sourceUrl: string): Promise<string | null> {
-  const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(sourceUrl)}`;
-  const response = await fetch(proxyUrl);
-  if (!response.ok) throw new Error(`Proxy returned ${response.status}`);
-  const html = await response.text();
-  // Match iiif.micr.io/XXXXXX where the ID is alphanumeric, typically 5-6 chars
-  const match = html.match(/iiif\.micr\.io\/([A-Za-z0-9]+)/);
-  return match ? match[1] : null;
+  let lastError: unknown = null;
+  for (const proxy of PROXIES) {
+    try {
+      const response = await fetch(proxy(sourceUrl), {
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) {
+        lastError = new Error(`Proxy returned ${response.status}`);
+        continue;
+      }
+      const html = await response.text();
+      const match = html.match(/iiif\.micr\.io\/([A-Za-z0-9]+)/);
+      // If the page loaded but no IIIF id is present, that's a "not found",
+      // not a proxy failure — return null so we don't try the next proxy.
+      if (html.length > 1000) {
+        return match ? match[1] : null;
+      }
+      lastError = new Error("Proxy returned empty/short body");
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError ?? new Error("All proxies failed");
 }
 
 export default function CurationTestPage() {
